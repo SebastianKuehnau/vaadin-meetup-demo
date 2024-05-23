@@ -17,9 +17,7 @@ import me.sebastian.demo.data.service.SamplePersonService;
 import me.sebastian.demo.views.masterdetail.MasterDetailView;
 import org.springframework.data.domain.PageRequest;
 
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 
@@ -29,6 +27,7 @@ public class HelloWorldView extends VerticalLayout implements HasUrlParameter<St
     private final Grid<SamplePerson> grid;
     private final TextField textField;
     private final SamplePersonService samplePersonService;
+    private final Button loadSlowGridButton;
 
     public HelloWorldView(SamplePersonService samplePersonService) {
         this.samplePersonService = samplePersonService;
@@ -52,7 +51,6 @@ public class HelloWorldView extends VerticalLayout implements HasUrlParameter<St
         var filterForm = new HorizontalLayout(textField, button);
         filterForm.addClassNames(LumoUtility.AlignItems.END,
                 LumoUtility.Width.FULL,
-                LumoUtility.BoxShadow.MEDIUM,
                 LumoUtility.Padding.MEDIUM);
 
         /**
@@ -78,14 +76,18 @@ public class HelloWorldView extends VerticalLayout implements HasUrlParameter<St
         /**
          * 4. Asynchronous Processes
          */
-        var showSlowGridButton = new Button("Show slow grid");
-        showSlowGridButton.addClickListener(this::showSlowGridDialog);
+        loadSlowGridButton = new Button("Load slow grid in Dialog");
+        loadSlowGridButton.addClickListener(this::showSlowGridDialog);
+        loadSlowGridButton.addClassNames(
+                LumoUtility.Background.ERROR,
+                LumoUtility.TextColor.PRIMARY_CONTRAST,
+                LumoUtility.Margin.MEDIUM);
 
-        var horizontalLayout = new HorizontalLayout(linkToMasterDetailView, showSlowGridButton);
-        horizontalLayout.addClassNames(LumoUtility.AlignItems.BASELINE);
-        horizontalLayout.addClassNames(LumoUtility.Margin.Horizontal.MEDIUM);
+        VerticalLayout gridLayout = new VerticalLayout(filterForm, grid);
+        gridLayout.addClassNames(LumoUtility.BoxShadow.MEDIUM, LumoUtility.Padding.MEDIUM);
+        gridLayout.setSpacing(false);
 
-        add(filterForm, grid, horizontalLayout);
+        add(gridLayout, loadSlowGridButton);
         setPadding(false);
     }
 
@@ -93,26 +95,43 @@ public class HelloWorldView extends VerticalLayout implements HasUrlParameter<St
 
         var slowGrid = new Grid<>(SamplePerson.class);
         slowGrid.setColumns("id", "firstName", "lastName", "email");
-        slowGrid.setEnabled(false);
-        slowGrid.addClassName(LumoUtility.Margin.MEDIUM);
-
-        ExecutorService executorService = Executors.newCachedThreadPool();
-        CompletableFuture<List<SamplePerson>> listCompletableFuture = CompletableFuture.supplyAsync(
-                samplePersonService::slowList, executorService);
-        listCompletableFuture.thenAccept(personList ->
-                getUI().ifPresent(
-                        ui -> ui.access(
-                                () -> {
-                                    slowGrid.setItems(personList);
-                                    slowGrid.setEnabled(true);
-                                })));
+        slowGrid.addClassName(LumoUtility.Padding.MEDIUM);
+        slowGrid.setSizeFull();
 
         var dialog = new Dialog(slowGrid);
         dialog.setWidth("80%");
         dialog.setHeight("80%");
+        dialog.setModal(true);
         dialog.isCloseOnEsc();
         dialog.setCloseOnOutsideClick(true);
-        dialog.open();
+        dialog.addOpenedChangeListener(event -> {
+            this.loadSlowGridButton.setVisible(!event.isOpened());
+        });
+
+        var loadingSlowGridButton = new Button("loading...");
+        loadingSlowGridButton.addClassNames(LumoUtility.Background.CONTRAST_70, LumoUtility.Margin.MEDIUM,
+                LumoUtility.TextColor.PRIMARY_CONTRAST);
+        loadingSlowGridButton.setEnabled(false);
+        replace(this.loadSlowGridButton, loadingSlowGridButton);
+
+        var openSlowGridDialogButton = new Button("Open Dialog with Grid");
+        openSlowGridDialogButton.addClassNames(LumoUtility.Margin.MEDIUM, LumoUtility.Background.SUCCESS,
+                LumoUtility.TextColor.PRIMARY_CONTRAST);
+        openSlowGridDialogButton.addClickListener(event -> {
+            replace(openSlowGridDialogButton, this.loadSlowGridButton);
+            this.loadSlowGridButton.addClassName(LumoUtility.Background.CONTRAST_50);
+            dialog.open();
+        } );
+
+        CompletableFuture
+                .supplyAsync(samplePersonService::slowList, Executors.newCachedThreadPool())
+                .thenAccept(personList ->
+                    getUI().ifPresent(
+                        ui -> ui.access(
+                                () -> {
+                                    slowGrid.setItems(personList);
+                                    replace(loadingSlowGridButton, openSlowGridDialogButton);
+                                })));
     }
 
     private void filter() {
