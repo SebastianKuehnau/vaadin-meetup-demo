@@ -47,19 +47,23 @@ public class SamplePersonService {
         return repository.findAll(filter, pageable);
     }
 
-    public Page<SamplePerson> listByFirstNameLike(Pageable pageable, String firstName) {
-        return repository.findAll(byFirstNameLike(firstName), pageable);
+    public Page<SamplePerson> listByNameLike(Pageable pageable, String name) {
+        return repository.findAll(byNameLike(name), pageable);
     }
 
-    public int countByFirstNameLike(String firstName) {
-        return (int) repository.count(byFirstNameLike(firstName));
+    public int countByNameLike(String name) {
+        return (int) repository.count(byNameLike(name));
     }
 
-    private static Specification<SamplePerson> byFirstNameLike(String firstName) {
+    private static Specification<SamplePerson> byNameLike(String name) {
         return (root, query, criteriaBuilder) -> {
             var firstNameExpression = criteriaBuilder.lower(root.get("firstName"));
-            var inputPattern = "%" + firstName.toLowerCase() + "%";
-            return criteriaBuilder.like(firstNameExpression, inputPattern);
+            var lastNameExpression = criteriaBuilder.lower(root.get("lastName"));
+            var inputPattern = "%" + name.toLowerCase() + "%";
+            return criteriaBuilder.or(
+                    criteriaBuilder.like(firstNameExpression, inputPattern),
+                    criteriaBuilder.like(lastNameExpression, inputPattern)
+            );
         };
     }
 
